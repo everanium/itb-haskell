@@ -1,0 +1,81 @@
+cabal-version:      3.0
+name:               libitb3
+version:            0.5.1
+synopsis:           ITB Symmetric Cipher Construction with Ambiguity-Based Security - Haskell
+description:
+    Thin proxy over the libitb3 shared library's @ITB_Triple_*@ surface.
+    Every hash-name / MAC-name / cipher-name / profile-name is an opaque
+    string passed through to Go for validation; the binding carries no
+    ITB construction logic of its own.
+license:            Apache-2.0
+author:             Andrey Kuvshinov
+maintainer:         Andrey Kuvshinov <andrew@encloud.blue>
+copyright:          (c) 2026 Andrey Kuvshinov
+category:           Cryptography
+homepage:           https://github.com/everanium/itb
+bug-reports:        https://github.com/everanium/itb/issues
+extra-doc-files:    README.md
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    hs-source-dirs:   src
+    exposed-modules:
+        ITB3
+        ITB3.Errors
+        ITB3.FFI
+        ITB3.Opts
+        ITB3.Pipeline
+        ITB3.Stream
+    build-depends:
+        base       >=4.14 && <5,
+        bytestring >=0.10
+    -- The link-time search path for libitb3.so is injected by build.sh
+    -- through a generated cabal.project.local (absolute extra-lib-dirs
+    -- plus an rpath); ghc-pkg rejects relative extra-lib-dirs at
+    -- registration time, so no path is hard-coded here. Run ./build.sh
+    -- (or write an equivalent cabal.project.local) before `cabal build`.
+    extra-libraries:  itb3
+    default-language: Haskell2010
+
+test-suite tests
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    build-depends:
+        base,
+        bytestring,
+        directory,
+        hspec >=2.7,
+        libitb3
+    ghc-options:      -threaded
+    default-language: Haskell2010
+
+benchmark itb-bench
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   bench
+    main-is:          Bench.hs
+    build-depends:
+        base,
+        bytestring,
+        libitb3
+    ghc-options:      -threaded -O2
+    default-language: Haskell2010
+
+executable itb-eitb
+    import:           warnings
+    hs-source-dirs:   eitb
+    main-is:          Main.hs
+    build-depends:
+        base,
+        bytestring,
+        directory,
+        filepath,
+        libitb3
+    ghc-options:      -threaded
+    default-language: Haskell2010

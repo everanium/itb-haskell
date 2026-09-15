@@ -1,0 +1,12 @@
+packages: .
+tests: True
+benchmarks: True
+
+-- Arch Linux ships the GHC boot libraries as shared objects only
+-- (static archives live in the separate ghc-static package), so
+-- every component — Hackage dependencies included — links
+-- dynamically. Harmless on distributions carrying both flavours.
+package *
+    shared: True
+    executable-dynamic: True
+    library-vanilla: False

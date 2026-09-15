@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# eitb -- launcher for the eitb CLI. Builds the binding on first use
+# (or when the compiled binary is missing), then forwards every
+# argument to the itb-eitb executable. The caller's working directory
+# is preserved so relative file arguments resolve as typed.
+
+set -eu
+set -o pipefail
+
+BINDING_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$BINDING_DIR/../.." && pwd)"
+DIST_DIR="$REPO_ROOT/dist/linux-amd64"
+
+BIN="$(cd "$BINDING_DIR" && cabal list-bin itb-eitb 2>/dev/null || true)"
+if [[ -z "$BIN" || ! -x "$BIN" || ! -f "$DIST_DIR/libitb3.so" ]]; then
+    (cd "$BINDING_DIR" && ./build.sh >&2)
+    BIN="$(cd "$BINDING_DIR" && cabal list-bin itb-eitb)"
+fi
+
+export LD_LIBRARY_PATH="$DIST_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+exec "$BIN" "$@"
