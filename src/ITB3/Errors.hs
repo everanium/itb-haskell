@@ -3,7 +3,6 @@
 -- (@cmd\/cshared\/internal\/capi\/errors.go@).
 module ITB3.Errors
   ( ITBError (..)
-  , statusName
   , check
   , readLastError
     -- * Status-code constants
@@ -57,10 +56,8 @@ data ITBError = ITBError
   deriving (Show, Eq)
 
 instance Exception ITBError where
-  displayException (ITBError code msg)
-    | null msg  = "itb: status=" <> show code <> " (" <> statusName code <> ")"
-    | otherwise =
-        "itb: status=" <> show code <> " (" <> statusName code <> "): " <> msg
+  displayException (ITBError code msg) =
+    "itb: status=" <> show code <> ": " <> msg
 
 -- ── status-code constants (stable across releases) ──────────────────
 
@@ -95,34 +92,6 @@ statusStreamAfterFinal  = 24
 statusTripleClosed      = 25
 statusProfileExists     = 26
 statusInternal          = 99
-
--- | Human-readable label for a libitb3 status code.
-statusName :: Int -> String
-statusName code = case code of
-  0  -> "ok"
-  1  -> "unknown hash name"
-  2  -> "invalid key bits"
-  3  -> "invalid handle"
-  4  -> "invalid input"
-  5  -> "output buffer too small"
-  6  -> "encrypt failed"
-  7  -> "decrypt failed"
-  8  -> "seed width mismatch"
-  9  -> "unknown MAC name or invalid MAC handle"
-  10 -> "MAC verification failed"
-  11 -> "blob recipe malformed"
-  12 -> "blob recipe names an unknown primitive"
-  13 -> "unknown profile name"
-  19 -> "blob mode mismatch"
-  20 -> "malformed state blob"
-  21 -> "blob version too new"
-  22 -> "too many blob export opts"
-  23 -> "stream truncated before terminator"
-  24 -> "stream chunk after terminator"
-  25 -> "Triple Pipeline is closed"
-  26 -> "profile name already registered"
-  99 -> "internal error"
-  _  -> "unrecognised status"
 
 -- | Throws 'ITBError' (with the @ITB_LastError@ diagnostic attached)
 -- when the return code is non-OK.

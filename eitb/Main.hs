@@ -1,10 +1,10 @@
--- | eitb — command-line demonstrator for the ITB Haskell binding.
+-- | Command-line demonstrator for the ITB Haskell binding.
 --
 -- Subcommands:
 --
--- >  eitb version                                   library + binding versions
--- >  eitb profiles                                  registered profile catalogue
--- >  eitb encrypt <profile> <in-file> <out-file>    Single Message encrypt
+-- >  eitb version
+-- >  eitb profiles
+-- >  eitb encrypt <profile> <in-file> <out-file>
 -- >  eitb decrypt <profile> <blob-hex> <in-file> <out-file>
 --
 -- @encrypt@ prints the session blob to stderr as hex; feed that hex

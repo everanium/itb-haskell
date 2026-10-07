@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 -- | Throughput micro-benchmarks: Single Message encrypt and
--- incremental Streaming encrypt at 1 MiB \/ 16 MiB \/ 64 MiB.
+-- incremental streaming encrypt at 1 MiB \/ 16 MiB \/ 64 MiB.
 --
 -- Bench configuration is driven by the fleet's canonical environment
 -- variables so a side-by-side comparison with the root Go bench
@@ -68,7 +68,7 @@ main = do
     benchCase "stream-dec" size minSec (streamDecryptOnce streamPipe decWire)
   freePipeline streamPipe
 
-  -- Whole-buffer stream: one FFI round trip through
+  -- One-shot stream: one FFI round trip through
   -- encryptStreamOneShot / decryptStreamOneShot per iteration.
   oneShotPipe <- initPipeline streamProfile opts
   forM_ sizes $ \size -> do

@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 -- | hspec suite for the ITB Haskell binding: roster checks, Single
--- Message and incremental Streaming round trips, error mapping, the
+-- Message and incremental streaming round trips, error mapping, the
 -- large-plaintext pre-allocate\/retry path, rekey, profile
 -- registration, and the stream session's GC parent-pin.
 module Main (main) where
@@ -42,6 +42,10 @@ main = hspec $ do
     it "version is non-empty" $ do
       v <- version
       v `shouldNotBe` ""
+
+    it "drbg auto tier is one of the two fill ciphers" $ do
+      t <- drbgAutoTier
+      t `shouldSatisfy` (`elem` ["aes-256-ctr", "chacha20"])
 
     it "profiles list carries the shipped names" $ do
       forM_ [ "singlemsg-triple-mac-v1"
@@ -355,8 +359,118 @@ main = hspec $ do
       freePipeline receiver
       freePipeline sender
 
+  describe "runtime surface" $ do
+    it "hash registry enumerates in registry order" $ do
+      names <- hashNames
+      names `shouldNotBe` []
+      head names `shouldBe` "aesitb128"
+      names `shouldSatisfy` elem "areion512"
+      names `shouldSatisfy` elem "blake3"
+      names `shouldSatisfy` notElem "nope"
+
+    it "GOMAXPROCS queries and restores" $ do
+      before <- setGomaxprocs 0
+      before `shouldSatisfy` (> 0)
+      prev <- setGomaxprocs 2
+      prev `shouldBe` before
+      setGomaxprocs 0 >>= (`shouldBe` 2)
+      _ <- setGomaxprocs before
+      setGomaxprocs 0 >>= (`shouldBe` before)
+
+    it "pool counters report the advertised slot count and grow" $ do
+      n <- poolStatsLen
+      n `shouldSatisfy` (> 8)
+      before <- poolStats
+      length before `shouldBe` n
+      let tiers = fromIntegral (head before) :: Int
+      tiers `shouldSatisfy` (> 0)
+      n `shouldBe` 1 + 5 * tiers + 8
+      pipe <- newPipeline "singlemsg-triple-mac-v1"
+      let plain = payload 2048 97
+      wire <- encryptMessage pipe plain
+      back <- decryptMessage pipe wire
+      back `shouldBe` plain
+      freePipeline pipe
+      after <- poolStats
+      -- Slot 1 + 5*i + 1 is tier i's checkout count; at least one tier
+      -- was checked out by the round trip above.
+      let moved = or [ after !! (1 + 5 * i + 1) > before !! (1 + 5 * i + 1)
+                     | i <- [0 .. tiers - 1] ]
+      moved `shouldBe` True
+
+    it "heap profile is written and is non-empty" $ do
+      dir <- getTemporaryDirectory
+      let path = dir ++ "/itb-haskell-heap.prof"
+      writeHeapProfile path
+      bytes <- BS.readFile path
+      BS.length bytes `shouldSatisfy` (> 0)
+      removeFile path
+
+    it "heap profile with no path and no env fallback is statusBadInput" $
+      writeHeapProfile "" `shouldFailWithStatus` [statusBadInput]
+
+  describe "DRBG fill primitive" $ do
+    it "round-trips through a loaded blob under csprng and aesitb128" $
+      forM_ ["csprng", "aesitb128"] $ \name -> do
+        sender <- initPipeline "singlemsg-triple-mac-v1" (drbg name)
+        blobBytes <- save sender
+        receiver <- loadPipeline blobBytes Nothing
+        let plain = BC.pack ("drbg " ++ name)
+        wire <- encryptMessage sender plain
+        back <- decryptMessage receiver wire
+        back `shouldBe` plain
+        let reverse' = BC.pack ("reverse " ++ name)
+        wire' <- encryptMessage receiver reverse'
+        back' <- decryptMessage sender wire'
+        back' `shouldBe` reverse'
+        freePipeline receiver
+        freePipeline sender
+
+    it "inspect reports drbg; the default carries none; an unknown name is statusRecipePrimitiveUnknown" $ do
+      sender <- initPipeline "singlemsg-triple-mac-v1" (drbg "csprng")
+      inspected <- save sender >>= inspect
+      inspected `shouldSatisfy` isInfixOf "\"drbg\":\"csprng\""
+      freePipeline sender
+      -- With no drbg set the record carries no drbg key, and no
+      -- shipped profile names one.
+      plain <- newPipeline "singlemsg-triple-mac-v1"
+      defaultRecord <- save plain >>= inspect
+      defaultRecord `shouldSatisfy` (not . isInfixOf "\"drbg\":")
+      freePipeline plain
+      looked <- lookupProfile "singlemsg-triple-mac-v1"
+      looked `shouldSatisfy` (not . isInfixOf "\"drbg\":")
+      initPipeline "singlemsg-triple-mac-v1" (drbg "nope")
+        `shouldThrow` \e -> statusCode e == statusRecipePrimitiveUnknown
+                            && "nope" `isInfixOf` lastError e
+
+    it "a register copy of an inspected record keeps drbg" $ do
+      sender <- initPipeline "singlemsg-triple-mac-v1" (drbg "csprng")
+      inspected <- save sender >>= inspect
+      -- The inspection-only fields are dropped; drbg is a recipe field
+      -- and stays in the registered copy.
+      let record = foldr dropScalarKey inspected
+            ["name", "nonce_bits", "barrier_fill", "container_mode"]
+      register "haskell-binding-test-drbg-copy" record
+      looked <- lookupProfile "haskell-binding-test-drbg-copy"
+      looked `shouldSatisfy` isInfixOf "\"drbg\":\"csprng\""
+      freePipeline sender
+
 -- | Splits a ByteString into slices of at most @n@ bytes (zero-copy).
 chunksOf :: Int -> BS.ByteString -> [BS.ByteString]
 chunksOf n bs
   | BS.null bs = []
   | otherwise = BS.take n bs : chunksOf n (BS.drop n bs)
+
+-- | Removes a @"key":value,@ member with a scalar value from a flat
+-- JSON object rendering; the record is left unchanged when the key is
+-- absent.
+dropScalarKey :: String -> String -> String
+dropScalarKey key = go
+  where
+    needle = "\"" ++ key ++ "\":"
+    go [] = []
+    go s@(c : rest)
+      | take (length needle) s == needle =
+          let afterValue = dropWhile (/= ',') (drop (length needle) s)
+          in drop 1 afterValue
+      | otherwise = c : go rest

@@ -10,9 +10,14 @@
 module ITB3.FFI
   ( ITBHandle
   , c_ITB_Version
+  , c_ITB_DRBGAutoTier
   , c_ITB_LastError
   , c_ITB_SetMemoryLimit
   , c_ITB_SetGCPercent
+  , c_ITB_SetGOMAXPROCS
+  , c_ITB_WriteHeapProfile
+  , c_ITB_PoolStatsLen
+  , c_ITB_PoolStats
   , c_ITB_Triple_Init
   , c_ITB_Triple_Load
   , c_ITB_Triple_LoadF
@@ -30,6 +35,7 @@ module ITB3.FFI
   , c_ITB_Triple_Register
   , c_ITB_Triple_Lookup
   , c_ITB_Triple_Profiles
+  , c_ITB_Triple_HashNames
   , c_ITB_Triple_EncryptStreamBegin
   , c_ITB_Triple_DecryptStreamBegin
   , c_ITB_Triple_StreamWrite
@@ -50,6 +56,9 @@ type ITBHandle = CUIntPtr
 
 foreign import ccall safe "ITB_Version"
   c_ITB_Version :: Ptr CChar -> CSize -> Ptr CSize -> IO CInt
+
+foreign import ccall safe "ITB_DRBGAutoTier"
+  c_ITB_DRBGAutoTier :: Ptr CChar -> CSize -> Ptr CSize -> IO CInt
 
 foreign import ccall safe "ITB_LastError"
   c_ITB_LastError :: Ptr CChar -> CSize -> Ptr CSize -> IO CInt
@@ -186,3 +195,29 @@ foreign import ccall safe "ITB_Triple_StreamRead"
 
 foreign import ccall safe "ITB_Triple_StreamFree"
   c_ITB_Triple_StreamFree :: ITBHandle -> IO CInt
+
+-- ── runtime knobs and diagnostics ───────────────────────────────────
+
+foreign import ccall safe "ITB_SetGOMAXPROCS"
+  c_ITB_SetGOMAXPROCS :: CInt -> IO CInt
+
+foreign import ccall safe "ITB_WriteHeapProfile"
+  c_ITB_WriteHeapProfile :: Ptr CChar -> IO CInt
+
+foreign import ccall safe "ITB_PoolStatsLen"
+  c_ITB_PoolStatsLen :: IO CInt
+
+foreign import ccall safe "ITB_PoolStats"
+  c_ITB_PoolStats
+    :: Ptr Int64                 -- out
+    -> CSize                     -- cap, counted in int64 slots
+    -> Ptr CSize                 -- slots written out
+    -> IO CInt
+
+-- ── hash registry enumeration ───────────────────────────────────────
+
+foreign import ccall safe "ITB_Triple_HashNames"
+  c_ITB_Triple_HashNames
+    :: Ptr Word8 -> CSize        -- json out / cap
+    -> Ptr CSize                 -- json len out
+    -> IO CInt

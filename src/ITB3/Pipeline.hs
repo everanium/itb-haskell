@@ -26,6 +26,7 @@ module ITB3.Pipeline
   , register
   , lookupProfile
   , profiles
+  , hashNames
     -- * Internal (used by "ITB3.Stream")
   , withPipelineHandle
   , pipelineForeignPtr
@@ -56,9 +57,9 @@ blobCap :: Int
 blobCap = 64 * 1024
 
 -- | Pre-allocation formula for Message \/ one-shot stream outputs:
--- @payload * 5\/4 + 65536@.
+-- @payload * 5\/4 + 131072@.
 outCap :: Int -> Int
-outCap payload = payload + payload `div` 4 + 65536
+outCap payload = payload + payload `div` 4 + 131072
 
 -- | A Triple Pipeline session. 'save' exports the session bundle the
 -- receiver feeds to 'loadPipeline'; 'rekey' refreshes it.
@@ -214,7 +215,7 @@ saveF p path =
 -- | Sets the worker cap for every subsequent cipher call. The value is
 -- clamped by libitb3 (@<= 0@ selects auto, @> 256@ becomes 256); only
 -- the handle state is reported. The cap is per-machine and never
--- travels in the blob. (Named 'setMaxWorkers' because 'ITB3.Opts.maxWorkers'
+-- written to the blob. (Named 'setMaxWorkers' because 'ITB3.Opts.maxWorkers'
 -- is the Init-time opts setter.)
 setMaxWorkers :: Pipeline -> Int -> IO ()
 setMaxWorkers p n =
@@ -316,6 +317,23 @@ profiles :: IO [String]
 profiles = do
   json <- BC.unpack <$> retryOnce blobCap (\buf cap lenP ->
     c_ITB_Triple_Profiles buf cap lenP)
+  pure (odds (splitOn '"' json))
+  where
+    splitOn c str = case break (== c) str of
+      (a, [])     -> [a]
+      (a, _:rest) -> a : splitOn c rest
+    odds (_:x:xs) = x : odds xs
+    odds _        = []
+
+-- | The names of every hash primitive the shipped registry carries,
+-- in registry order. A name outside this list is not one the local
+-- build can key an 'ITB3.Opts.innerHash' with. libitb3 returns a JSON
+-- array of strings; names match @^[a-z][a-z0-9-]+$@, so the array
+-- splits on the quote characters alone.
+hashNames :: IO [String]
+hashNames = do
+  json <- BC.unpack <$> retryOnce blobCap (\buf cap lenP ->
+    c_ITB_Triple_HashNames buf cap lenP)
   pure (odds (splitOn '"' json))
   where
     splitOn c str = case break (== c) str of

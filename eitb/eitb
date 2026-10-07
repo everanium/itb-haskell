@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# eitb -- launcher for the eitb CLI. Builds the binding on first use
-# (or when the compiled binary is missing), then forwards every
-# argument to the itb-eitb executable. The caller's working directory
-# is preserved so relative file arguments resolve as typed.
+# Launcher for the eitb CLI. Builds the binding on first use (or when
+# the compiled binary is missing), then forwards every argument to
+# the itb-eitb executable. The caller's working directory is
+# preserved so relative file arguments resolve as typed.
 
 set -eu
 set -o pipefail

@@ -1,0 +1,10 @@
+# The utility's executable is produced into the binding's cabal build
+# directory, which the binding's own ignore file already covers. What
+# this file keeps out of the index is anything a compiler run from
+# inside this directory would drop beside the sources, so the rule
+# survives if the tree is ever consumed outside the repository root.
+loop
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o

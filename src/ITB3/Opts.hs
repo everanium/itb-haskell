@@ -28,6 +28,7 @@ module ITB3.Opts
   , innerHash
   , innerHashes
   , outerCipher
+  , drbg
   , parallaxPalette
     -- * Escape hatch
   , opt
@@ -110,6 +111,9 @@ innerHashes = opt "innerHashes" . intercalate ","
 
 outerCipher :: String -> Opts
 outerCipher = opt "outerCipher"
+
+drbg :: String -> Opts
+drbg = opt "drbg"
 
 -- | Comma-joins the palette names (@parallaxPalette@).
 parallaxPalette :: [String] -> Opts

@@ -79,3 +79,31 @@ executable itb-eitb
         libitb3
     ghc-options:      -threaded
     default-language: Haskell2010
+
+executable itb-loop
+    import:           warnings
+    hs-source-dirs:   loop
+    main-is:          Main.hs
+    other-modules:
+        Ops
+        Payload
+        Size
+        State
+        Summary
+        Worker
+    build-depends:
+        base,
+        bytestring,
+        unix,
+        libitb3
+    -- -N gives forkIO the capabilities the concurrent mode needs:
+    -- without it every worker multiplexes onto one capability and the
+    -- run serialises while the per-worker counters still look even.
+    -- -rtsopts additionally lets an operator select a collection mode,
+    -- which is how the host-collector arms are driven. -O2 matches the
+    -- benchmark component rather than the eitb one, because this
+    -- utility reports throughput and runs for minutes: an unoptimised
+    -- build would both misreport the rate and change the allocation
+    -- profile the run is meant to stress.
+    ghc-options:      -threaded -rtsopts -O2 "-with-rtsopts=-N"
+    default-language: Haskell2010

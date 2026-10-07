@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# build.sh -- one-step build for the Haskell binding: libitb3.so
-# (only when absent — set ITB_REBUILD_LIBITB3=1 to force a Go rebuild)
-# plus the cabal package (library, tests, bench, eitb executable).
-# Prerequisites (Go, ghc, cabal-install) must be installed separately;
-# see README.md "Prerequisites".
+# One-step build for the Haskell binding: libitb3.so (only when absent
+# — set ITB_REBUILD_LIBITB3=1 to force a Go rebuild) plus the cabal
+# package (library, tests, bench, eitb executable). Prerequisites (Go,
+# ghc, cabal-install) must be installed separately; see README.md
+# "Prerequisites".
 #
 # The build starts by removing every artefact this binding owns, so no
 # output of an earlier build can survive into this one and mask a

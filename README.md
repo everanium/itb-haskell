@@ -12,7 +12,7 @@ through `foreign import ccall`. Every hash-name / MAC-name /
 cipher-name / profile-name is an opaque string passed through to Go
 for validation — the binding carries no ITB construction logic. The
 public surface is a `Pipeline` (init / load / save / rekey /
-setMaxWorkers / close, Single Message encrypt / decrypt, whole-buffer
+setMaxWorkers / close, Single Message encrypt / decrypt, one-shot
 and incremental stream sessions), an opts query-string builder for
 init overrides, the profile-record entries `register` /
 `lookupProfile` / `profiles` / `inspect`, and the Go runtime knobs.
@@ -63,6 +63,7 @@ time — run `build.sh` first (or write an equivalent
 
 ```haskell
 import ITB3
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 
 main :: IO ()
@@ -136,13 +137,11 @@ library directly and register the same custom primitive under the
 same name before opening. Attempting to load such a blob through this
 binding throws `ITBError` with `statusRecipePrimitiveUnknown`.
 
-**Runtime tuning.** The worker cap is per-machine and never travels
-in the blob; the receiver may pick its own after load (`setMaxWorkers`
-— the Init-time opts setter is `maxWorkers` on the `Opts` record):
-
-```haskell
-setMaxWorkers receiver 4   -- clamped by libitb3; <= 0 selects auto
-```
+**Runtime tuning.** `setMaxWorkers pipe n` sets the worker cap for
+every subsequent cipher call (`n <= 0` selects auto, `n > 256` is
+clamped to 256); the receiver may pick its own worker cap after
+load — the cap is per-machine and never written to the blob. The
+Init-time opts setter is `maxWorkers` on the `Opts` record.
 
 ## Profile registry
 
@@ -187,9 +186,9 @@ Errors are thrown as `ITBError { statusCode, lastError }` (an
 constants exported by `ITB3.Errors`:
 
 ```haskell
-r <- try (newPipeline "no-such-profile" Nothing)
+r <- try (newPipeline "no-such-profile")
 case r of
-  Left e | statusCode e == statusBadInput -> putStrLn "rejected"
+  Left e | statusCode e == statusUnknownProfile -> putStrLn "rejected"
   _ -> pure ()
 ```
 
@@ -226,7 +225,7 @@ setGcPercent 100                         -- balanced GC
 ```
 
 hspec suite: version and profile-list checks, Single Message and
-incremental Streaming round trips, a whole-buffer stream round trip,
+incremental streaming round trips, a one-shot stream round trip,
 a > 1 MiB payload through the pre-allocate/retry path, error mapping
 (unknown profile, unknown opts key, tampered wire, closed Pipeline,
 duplicate profile registration), rekey blob refresh, save / load
@@ -240,14 +239,15 @@ rendering.
 ITB_BENCH_MIN_SEC=1 ./bindings/haskell/run_bench.sh   # quick smoke
 ```
 
-Single Message encrypt and incremental Streaming encrypt (No MAC
-profiles) at 1 MiB / 16 MiB / 64 MiB, configured through the fleet's
+Single Message encrypt, incremental streaming encrypt and one-shot
+Streaming encrypt (No MAC profiles) at 1 MiB / 16 MiB / 64 MiB,
+configured through the fleet's
 canonical env vars (`ITB_INNER_HASH`, `ITB_KEY_BITS`,
 `ITB_NONCE_BITS`, `ITB_WITH_PARALLAX`, `ITB_WITH_WRAPPER`,
 `ITB_PROFILE`, `ITB_BENCH_MIN_SEC`); the harness caps the Go runtime
 via `setMemoryLimit (4 * 1024 * 1024 * 1024)` and `setGcPercent 100`. See
-`bindings/BENCH.md` for the fleet-wide configuration authority and
-comparison tables.
+[`bindings/BENCH.md`](https://github.com/everanium/itb/blob/main/bindings/BENCH.md)
+for the fleet-wide configuration authority and comparison tables.
 
 ## itb3 CLI
 
@@ -259,6 +259,29 @@ payloads directly on disk (`-i` / `-o`) or through stdin / stdout,
 rotates outer masters, and inspects stored blobs. See
 [`cmd/itb3/README.md`](https://github.com/everanium/itb/blob/main/cmd/itb3/README.md) for the full
 subcommand reference.
+
+## loop utility
+
+A long-run stress harness under `bindings/haskell/loop/` holds one
+Pipeline handle for minutes, cycles encrypt → decrypt → compare
+round-trips through it, rotates the outer masters and reopens the
+handle from its session blob on a schedule, and reports whether the
+process survived with every byte intact. It is the binding-side
+counterpart of the Go harness under `tools/loop`: same flags, same
+round structure, same summary in both renderings.
+
+```bash
+./bindings/haskell/build.sh
+./bindings/haskell/run_loop.sh --duration 2m --shape both
+```
+
+`./bindings/haskell/run_loop.sh -h` lists every flag. Concurrency
+mode: **shared-handle** — every foreign import in the binding releases
+the capability for the whole of a call, so the runtime knows the thread
+has left Haskell code and the `--goroutines` threads call into one
+Pipeline handle at the same time on the capabilities `-N` provides;
+cipher calls hold a read lock and the two maintenance operations a
+write lock, so no handle changes under a call in flight.
 
 ## eitb utility
 
@@ -291,7 +314,7 @@ the Single Message or streaming cipher pair.
   call `freePipeline` / `freeStream` (or `closePipeline`)
   deterministically rather than relying on collection to release
   Go-side sessions.
-- **Streaming decrypt caveat.** Chunked Streaming AEAD verifies per
+- **Streaming-decrypt caveat.** Chunked Streaming AEAD verifies per
   chunk, so plaintext of verified chunks is released before a later
   chunk can fail authentication.
 - The binding exposes the Triple Pipeline surface only; the Low-Level
