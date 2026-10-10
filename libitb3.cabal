@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               libitb3
-version:            0.5.1
+version:            0.5.5
 synopsis:           ITB Symmetric Cipher Construction with Ambiguity-Based Security - Haskell
 description:
     Thin proxy over the libitb3 shared library's @ITB_Triple_*@ surface.
