@@ -14,6 +14,7 @@ module ITB3.Opts
   , emptyOpts
   , renderOpts
     -- * Typed setters
+  , mode
   , permMaster
   , wrapMaster
   , withParallax
@@ -59,6 +60,10 @@ emptyOpts = mempty
 -- a profile JSON record instead (see 'ITB3.Pipeline.register').
 opt :: String -> String -> Opts
 opt k v = Opts [(k, v)]
+
+-- | Container floor sizing mode (1 for per-region, 2 for per-container compact).
+mode :: Int -> Opts
+mode = opt "mode" . show
 
 -- | Hex-encodes the parallax master override (@pm@).
 permMaster :: BS.ByteString -> Opts

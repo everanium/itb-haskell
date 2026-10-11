@@ -270,11 +270,18 @@ main = hspec $ do
       inspected `shouldSatisfy` isInfixOf "\"mode\":\"singlemsg-mac\""
       inspected `shouldSatisfy` isInfixOf "\"nonce_bits\":"
       inspected `shouldSatisfy` isInfixOf "\"barrier_fill\":"
+      inspected `shouldSatisfy` isInfixOf "\"container_mode\":1"
       looked `shouldSatisfy` isInfixOf "\"name\":\"singlemsg-triple-mac-v1\""
       looked `shouldSatisfy` (not . isInfixOf "\"nonce_bits\":")
       looked `shouldSatisfy` (not . isInfixOf "\"barrier_fill\":")
+      looked `shouldSatisfy` (not . isInfixOf "\"container_mode\":")
       inspect (BC.pack "not a blob") `shouldFailWithStatus` [statusBadInput]
       freePipeline sender
+      s2 <- initPipeline "singlemsg-triple-mac-v1" (mode 2)
+      b2 <- save s2
+      inspected2 <- inspect b2
+      inspected2 `shouldSatisfy` isInfixOf "\"container_mode\":2"
+      freePipeline s2
 
     it "profiles lists the catalogue sorted and each name resolves" $ do
       names <- profiles
@@ -321,7 +328,8 @@ main = hspec $ do
   describe "opts builder" $ do
     it "renders typed setters as the expected query string" $ do
       let q = renderOpts $ mconcat
-            [ permMaster (BS.pack [0xAB, 0x01])
+            [ mode 2
+            , permMaster (BS.pack [0xAB, 0x01])
             , wrapMaster (BS.pack [0xCD, 0xEF])
             , withParallax True
             , withWrapper False
@@ -331,13 +339,13 @@ main = hspec $ do
             , parallaxPalette ["aescmac", "chacha20", "blake3"]
             ]
       q `shouldBe` BC.pack
-        "pm=ab01&wm=cdef&withParallax=true&withWrapper=false&\
+        "mode=2&pm=ab01&wm=cdef&withParallax=true&withWrapper=false&\
         \nonceBits=512&keyBits=1024&innerHash=areion512&\
         \parallaxPalette=aescmac,chacha20,blake3"
 
     it "percent-encodes bytes outside the URL-safe subset" $ do
-      renderOpts (opt "mode" "a b&c=d%")
-        `shouldBe` BC.pack "mode=a%20b%26c%3Dd%25"
+      renderOpts (opt "arbitrary" "a b&c=d%")
+        `shouldBe` BC.pack "arbitrary=a%20b%26c%3Dd%25"
       renderOpts emptyOpts `shouldBe` BC.pack ""
 
     it "innerHashes override round-trips on a width-512 profile" $ do

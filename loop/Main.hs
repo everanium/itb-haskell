@@ -44,7 +44,6 @@ import Control.Concurrent.MVar
 import Control.Exception (SomeException, finally, try)
 import Control.Monad (forM_, unless, when)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BC
 import Data.IORef
 import Data.Int (Int64)
 import Data.List (isPrefixOf)
@@ -539,7 +538,9 @@ logPipelineInitialised profile blob = do
 -- reopens use the retained blob; save is never called again.
 buildPipeline :: Config -> String -> IO (Maybe (Pipeline, BS.ByteString))
 buildPipeline cfg profile = do
-  let base = ITB3.innerHash (cfgHash cfg)
+  let modeOpt = if cfgBlobMode cfg /= 1 then ITB3.mode (cfgBlobMode cfg) else mempty
+      base = modeOpt
+        <> ITB3.innerHash (cfgHash cfg)
         <> ITB3.macName (cfgMac cfg)
         <> ITB3.withParallax (cfgParallax cfg)
         <> ITB3.withWrapper (cfgWrapper cfg)
@@ -571,54 +572,9 @@ buildPipeline cfg profile = do
               errLine $ "Save(" ++ profile ++ "): " ++ statusDetail e
               ITB3.freePipeline pipe
               pure Nothing
-            Right blob
-              | cfgBlobMode cfg /= 2 -> do
-                  logPipelineInitialised profile blob
-                  pure (Just (pipe, blob))
-              | otherwise -> do
-                  -- The sizing mode is not an Opts knob: the Init blob
-                  -- is edited and the pipeline reopened from it, so the
-                  -- retained blob (the one blob-cycle reopens from)
-                  -- carries the edited mode.
-                  ITB3.freePipeline pipe
-                  case editInnerBlobMode blob 2 of
-                    Nothing -> do
-                      errLine "rewrite blob mode: inner blob mode field not found"
-                      pure Nothing
-                    Just edited -> do
-                      reloaded <- try (ITB3.loadPipeline edited Nothing)
-                      case reloaded of
-                        Left (e :: SomeException) -> do
-                          errLine $ "reload Mode 2 blob: " ++ statusDetail e
-                          pure Nothing
-                        Right pipe' -> do
-                          logPipelineInitialised profile edited
-                          pure (Just (pipe', edited))
-
--- | Sets the inner blob's @mode@ field of a wrap-layer session blob to
--- the target mode (1 = per-region, 2 = per-container). The wrap
--- layer's profile record carries its own @mode@ (a string), so the
--- search starts at the inner blob (@ib@); both shipped modes are one
--- digit wide, so the blob length does not change. 'Nothing' when the
--- inner blob or its mode field is not found.
---
--- Haskell-specific. The binding carries no JSON library and reads
--- profile records by targeted string handling, so the edit replaces
--- the single digit in place rather than re-serialising the blob.
-editInnerBlobMode :: BS.ByteString -> Int -> Maybe BS.ByteString
-editInnerBlobMode blob target = do
-  let (pre, fromIb) = BC.breakSubstring (BC.pack "\"ib\":{") blob
-  if BS.null fromIb then Nothing else Just ()
-  let ibLen = BS.length pre + 6
-      (preMode, fromMode) = BC.breakSubstring (BC.pack "\"mode\":") (BS.drop ibLen blob)
-  if BS.null fromMode then Nothing else Just ()
-  let at = ibLen + BS.length preMode + 7
-      isDigit c = c >= '0' && c <= '9'
-  if at + 1 < BS.length blob
-       && BC.index blob at >= '1' && BC.index blob at <= '2'
-       && not (isDigit (BC.index blob (at + 1)))
-    then Just (BS.concat [BS.take at blob, BC.singleton (head (show target)), BS.drop (at + 1) blob])
-    else Nothing
+            Right blob -> do
+              logPipelineInitialised profile blob
+              pure (Just (pipe, blob))
 
 -- | Builds the Pipeline for a surface the shape exercises. The outer
 -- 'Nothing' is a construction failure; the inner one is a surface this

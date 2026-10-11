@@ -89,7 +89,7 @@ options of its own:
 ```haskell
 import ITB3.Opts
 
-let opts = chunkSize 65536 <> withWrapper False <> maxWorkers 4
+let opts = mode 2 <> chunkSize 65536 <> withWrapper False <> maxWorkers 4
 sender   <- initPipeline "singlemsg-triple-mac-v1" opts
 b        <- save sender
 receiver <- loadPipeline b Nothing
