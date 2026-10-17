@@ -17,6 +17,8 @@ module ITB3
     Pipeline
   , newPipeline
   , initPipeline
+  , newPipelineKeys
+  , initPipelineKeys
   , loadPipeline
   , loadPipelineF
   , save
@@ -101,7 +103,7 @@ import ITB3.Stream
 
 -- | The binding's own version.
 bindingVersion :: String
-bindingVersion = "0.7.2"
+bindingVersion = "0.7.3"
 
 -- | Returns the libitb3 library version string.
 version :: IO String

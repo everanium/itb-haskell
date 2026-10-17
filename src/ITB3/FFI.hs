@@ -19,6 +19,7 @@ module ITB3.FFI
   , c_ITB_PoolStatsLen
   , c_ITB_PoolStats
   , c_ITB_Triple_Init
+  , c_ITB_Triple_InitKeys
   , c_ITB_Triple_Load
   , c_ITB_Triple_LoadF
   , c_ITB_Triple_Save
@@ -75,6 +76,20 @@ foreign import ccall safe "ITB_Triple_Init"
   c_ITB_Triple_Init
     :: Ptr CChar        -- profile
     -> Ptr CChar        -- opts query string
+    -> Ptr Word8        -- blob out
+    -> CSize            -- blob cap
+    -> Ptr CSize        -- blob len out
+    -> Ptr ITBHandle    -- handle out
+    -> IO CInt
+
+foreign import ccall safe "ITB_Triple_InitKeys"
+  c_ITB_Triple_InitKeys
+    :: Ptr CChar        -- profile
+    -> Ptr CChar        -- opts query string
+    -> Ptr Word8        -- masters flat
+    -> CSize            -- masters flat len
+    -> Ptr CSize        -- master lens
+    -> CSize            -- masters count
     -> Ptr Word8        -- blob out
     -> CSize            -- blob cap
     -> Ptr CSize        -- blob len out

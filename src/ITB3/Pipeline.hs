@@ -10,6 +10,8 @@ module ITB3.Pipeline
   ( Pipeline
   , newPipeline
   , initPipeline
+  , newPipelineKeys
+  , initPipelineKeys
   , loadPipeline
   , loadPipelineF
   , save
@@ -34,6 +36,7 @@ module ITB3.Pipeline
   , outCap
   ) where
 
+import Control.Exception (bracket)
 import Control.Monad (void)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -42,8 +45,10 @@ import qualified Data.ByteString.Unsafe as BU
 import Foreign.C.Types (CInt, CSize)
 import Foreign.Concurrent (newForeignPtr)
 import Foreign.ForeignPtr (ForeignPtr, finalizeForeignPtr, withForeignPtr)
-import Foreign.Marshal.Alloc (alloca)
-import Foreign.Ptr (Ptr, castPtr, intPtrToPtr, ptrToIntPtr)
+import Foreign.Marshal.Alloc (alloca, allocaBytes)
+import Foreign.Marshal.Array (withArrayLen)
+import Foreign.Marshal.Utils (copyBytes, fillBytes)
+import Foreign.Ptr (Ptr, castPtr, intPtrToPtr, plusPtr, ptrToIntPtr)
 import Foreign.Storable (peek, poke)
 import Data.Word (Word8)
 
@@ -152,6 +157,56 @@ initPipeline profile opts =
                             buf cap lenP handleP
         h <- peek handleP
         mkPipeline h
+
+-- | Convenience constructor for 'initPipelineKeys' with 'emptyOpts'.
+newPipelineKeys :: String -> [BS.ByteString] -> IO Pipeline
+newPipelineKeys profile masters = initPipelineKeys profile emptyOpts masters
+
+-- | Deterministically constructs a Pipeline from eight caller-supplied
+-- master keys (one per canonical seed slot 0..7) against the named
+-- profile and options. The eight master keys must come from
+-- independent entropy or key-agreement sources; never derive all
+-- eight keys from a single secret or a single KDF parent key.
+initPipelineKeys :: String -> Opts -> [BS.ByteString] -> IO Pipeline
+initPipelineKeys profile opts masters = do
+  let lens = map (fromIntegral . BS.length) masters :: [CSize]
+      totalLen = sum (map BS.length masters)
+      allocLen = max totalLen 1
+  withCStr profile $ \profileC ->
+    withOpts opts $ \optsC ->
+      withArrayLen lens $ \count lensP ->
+        allocaBytes allocLen $ \flatP ->
+          bracket
+            (copyMasters flatP masters)
+            (\_ -> fillBytes flatP 0 allocLen)
+            $ \_ ->
+              alloca $ \handleP -> do
+                poke handleP 0
+                _ <- retryOnce blobCap $ \buf cap lenP -> do
+                  poke handleP 0
+                  c_ITB_Triple_InitKeys
+                    (castPtr profileC)
+                    (castPtr optsC)
+                    flatP
+                    (fromIntegral totalLen)
+                    lensP
+                    (fromIntegral count)
+                    buf
+                    cap
+                    lenP
+                    handleP
+                h <- peek handleP
+                mkPipeline h
+  where
+    copyMasters :: Ptr Word8 -> [BS.ByteString] -> IO ()
+    copyMasters _ [] = pure ()
+    copyMasters dst (m : ms) = do
+      let n = BS.length m
+      if n > 0
+        then do
+          withBytes m $ \src _ -> copyBytes dst src n
+          copyMasters (dst `plusPtr` n) ms
+        else copyMasters dst ms
 
 -- | The masters pair crosses as @(perm, wrap, count)@: @Nothing@
 -- yields 0, otherwise 2 — libitb3 validates the pair.

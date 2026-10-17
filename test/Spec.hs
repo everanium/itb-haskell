@@ -243,6 +243,27 @@ main = hspec $ do
       freePipeline receiver
       freePipeline sender
 
+    it "initPipelineKeys is deterministic and propagates BadInput errors" $ do
+      let masters = [BS.replicate 32 (fromIntegral (0x11 * i)) | i <- [1 .. 8 :: Int]]
+      p1 <- newPipelineKeys "singlemsg-triple-mac-v1" masters
+      p2 <- initPipelineKeys "singlemsg-triple-mac-v1" emptyOpts masters
+      b1 <- save p1
+      b2 <- save p2
+      b1 `shouldBe` b2
+      wire <- encryptMessage p1 (BC.pack "deterministic initPipelineKeys")
+      back <- decryptMessage p2 wire
+      back `shouldBe` BC.pack "deterministic initPipelineKeys"
+      freePipeline p1
+      freePipeline p2
+
+      let dupMasters = head masters : head masters : drop 2 masters
+      newPipelineKeys "singlemsg-triple-mac-v1" dupMasters
+        `shouldFailWithStatus` [statusBadInput]
+
+      let shortMasters = BS.replicate 8 0x11 : tail masters
+      newPipelineKeys "singlemsg-triple-mac-v1" shortMasters
+        `shouldFailWithStatus` [statusBadInput]
+
     it "load with master overrides equals a sender rekey" $ do
       sender <- newPipeline "singlemsg-triple-mac-v1"
       b <- save sender

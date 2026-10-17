@@ -11,7 +11,7 @@ Thin proxy over the libitb3 shared library's `ITB_Triple_*` surface
 through `foreign import ccall`. Every hash-name / MAC-name /
 cipher-name / profile-name is an opaque string passed through to Go
 for validation — the binding carries no ITB construction logic. The
-public surface is a `Pipeline` (init / load / save / rekey /
+public surface is a `Pipeline` (init / initPipelineKeys / load / save / rekey /
 setMaxWorkers / close, Single Message encrypt / decrypt, one-shot
 and incremental stream sessions), an opts query-string builder for
 init overrides, the profile-record entries `register` /
@@ -94,6 +94,8 @@ sender   <- initPipeline "singlemsg-triple-mac-v1" opts
 b        <- save sender
 receiver <- loadPipeline b Nothing
 ```
+
+`initPipelineKeys` (and `newPipelineKeys`) constructs a `Pipeline` deterministically from eight caller-supplied master keys (one per seed slot `0..7`) via per-slot KDF, so two peers holding the same eight master keys derive identical `Pipeline` instances without exchanging a session blob. The eight master keys must come from independent entropy or key-agreement sources — never derive all eight keys from a single secret or a single KDF parent key.
 
 `rekey` rotates the parallax + wrapper masters mid-session (the
 eight ITB seeds and MAC key are fixed for the session lifetime by
