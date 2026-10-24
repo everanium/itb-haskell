@@ -120,12 +120,43 @@ retryOnce cap call = do
         need <- fromIntegral <$> peek lenP
         pure (rc, need, BSI.fromForeignPtr fp 0 (min need n))
 
+-- | Cold-path counterpart of 'retryOnce' for constructors whose
+-- output blob is discarded: allocates temporary staging memory via
+-- 'allocaBytes', zeroes it in 'bracket', and never interns a
+-- 'BS.ByteString'.
+discardRetryOnce :: Int -> (Ptr Word8 -> CSize -> Ptr CSize -> IO CInt) -> IO ()
+discardRetryOnce cap call = do
+  (rc, need) <- attempt cap
+  if fromIntegral rc == statusBufferTooSmall && need > cap
+    then do
+      (rc2, _) <- attempt need
+      check rc2
+    else check rc
+  where
+    attempt !n =
+      let allocLen = max n 1
+      in allocaBytes allocLen $ \p ->
+           bracket
+             (pure ())
+             (\_ -> fillBytes p 0 allocLen)
+             $ \_ ->
+               alloca $ \lenP -> do
+                 poke lenP 0
+                 rc <- call p (fromIntegral n) lenP
+                 need <- fromIntegral <$> peek lenP
+                 pure (rc, need)
+
 -- | Passes a ByteString as a NUL-terminated C string (copied).
 withCStr :: String -> (Ptr Word8 -> IO a) -> IO a
 withCStr s f = BS.useAsCString (BC.pack s) (f . castPtr)
 
 withOpts :: Opts -> (Ptr Word8 -> IO a) -> IO a
-withOpts o f = BS.useAsCString (renderOpts o) (f . castPtr)
+withOpts o f =
+  BS.useAsCStringLen (renderOpts o) $ \(p, n) ->
+    bracket
+      (pure ())
+      (\_ -> fillBytes (castPtr p) 0 n)
+      (\_ -> f (castPtr p))
 
 withBytes :: BS.ByteString -> (Ptr Word8 -> CSize -> IO a) -> IO a
 withBytes bs f =
@@ -149,7 +180,7 @@ initPipeline profile opts =
     withOpts opts $ \optsC ->
       alloca $ \handleP -> do
         poke handleP 0
-        _ <- retryOnce blobCap $ \buf cap lenP -> do
+        discardRetryOnce blobCap $ \buf cap lenP -> do
           -- Go closes the undersized attempt; the retry re-runs Init
           -- and yields a fresh session.
           poke handleP 0
@@ -182,7 +213,7 @@ initPipelineKeys profile opts masters = do
             $ \_ ->
               alloca $ \handleP -> do
                 poke handleP 0
-                _ <- retryOnce blobCap $ \buf cap lenP -> do
+                discardRetryOnce blobCap $ \buf cap lenP -> do
                   poke handleP 0
                   c_ITB_Triple_InitKeys
                     (castPtr profileC)
