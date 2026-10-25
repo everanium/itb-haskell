@@ -350,6 +350,7 @@ main = hspec $ do
     it "renders typed setters as the expected query string" $ do
       let q = renderOpts $ mconcat
             [ mode 2
+            , interlock "168"
             , permMaster (BS.pack [0xAB, 0x01])
             , wrapMaster (BS.pack [0xCD, 0xEF])
             , withParallax True
@@ -360,7 +361,7 @@ main = hspec $ do
             , parallaxPalette ["aescmac", "chacha20", "blake3"]
             ]
       q `shouldBe` BC.pack
-        "mode=2&pm=ab01&wm=cdef&withParallax=true&withWrapper=false&\
+        "mode=2&interlock=168&pm=ab01&wm=cdef&withParallax=true&withWrapper=false&\
         \nonceBits=512&keyBits=1024&innerHash=areion512&\
         \parallaxPalette=aescmac,chacha20,blake3"
 
@@ -483,6 +484,43 @@ main = hspec $ do
       looked <- lookupProfile "haskell-binding-test-drbg-copy"
       looked `shouldSatisfy` isInfixOf "\"drbg\":\"csprng\""
       freePipeline sender
+
+  describe "Interlock chunk width" $ do
+    it "round-trips through a loaded blob under 168-bit width and inspect reports it" $ do
+      sender <- initPipeline "singlemsg-triple-mac-v1" (interlock "168")
+      blobBytes <- save sender
+      inspected <- inspect blobBytes
+      inspected `shouldSatisfy` isInfixOf "\"interlock\":\"168\""
+      receiver <- loadPipeline blobBytes Nothing
+      let plain = BC.pack "interlock 168"
+      wire <- encryptMessage sender plain
+      back <- decryptMessage receiver wire
+      back `shouldBe` plain
+      let reverse' = BC.pack "reverse interlock 168"
+      wire' <- encryptMessage receiver reverse'
+      back' <- decryptMessage sender wire'
+      back' `shouldBe` reverse'
+      freePipeline receiver
+      freePipeline sender
+
+      defPipe <- newPipeline "singlemsg-triple-mac-v1"
+      defaultRecord <- save defPipe >>= inspect
+      defaultRecord `shouldSatisfy` (not . isInfixOf "\"interlock\":")
+      freePipeline defPipe
+      looked <- lookupProfile "singlemsg-triple-mac-v1"
+      looked `shouldSatisfy` (not . isInfixOf "\"interlock\":")
+
+      let record = foldr dropScalarKey inspected
+            ["name", "nonce_bits", "barrier_fill", "container_mode"]
+      register "haskell-binding-test-interlock-copy" record
+      lookedCopy <- lookupProfile "haskell-binding-test-interlock-copy"
+      lookedCopy `shouldSatisfy` isInfixOf "\"interlock\":\"168\""
+
+    it "rejects 168-bit interlock on a 256-bit hash and unknown widths with statusBadInput" $ do
+      initPipeline "singlemsg-triple-mac-v1" (innerHash "blake3" <> interlock "168")
+        `shouldFailWithStatus` [statusBadInput]
+      initPipeline "singlemsg-triple-mac-v1" (interlock "96")
+        `shouldFailWithStatus` [statusBadInput]
 
 -- | Splits a ByteString into slices of at most @n@ bytes (zero-copy).
 chunksOf :: Int -> BS.ByteString -> [BS.ByteString]

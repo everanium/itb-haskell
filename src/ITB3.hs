@@ -54,6 +54,7 @@ module ITB3
   , renderOpts
   , opt
   , mode
+  , interlock
   , permMaster
   , wrapMaster
   , withParallax
@@ -103,7 +104,7 @@ import ITB3.Stream
 
 -- | The binding's own version.
 bindingVersion :: String
-bindingVersion = "0.7.5"
+bindingVersion = "0.8.1"
 
 -- | Returns the libitb3 library version string.
 version :: IO String

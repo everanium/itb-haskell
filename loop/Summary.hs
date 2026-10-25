@@ -239,6 +239,7 @@ finalSummary si = do
         , ",", kv "blob_mode" (show (cfgBlobMode cfg))
         , ",", kv "drbg" (jsonString (cfgDrbg cfg))
         , ",", kv "drbg_auto_tier" (jsonString autoTier)
+        , ",", kv "interlock" (jsonString (cfgInterlock cfg))
         , ",", kv "chunk_size_bytes" (show (cfgChunkSize cfg))
         , ",", kv "barrier_fill" (show (cfgBarrierFill cfg))
         , ",", kv "parallax" (jsonString (onOff (cfgParallax cfg)))

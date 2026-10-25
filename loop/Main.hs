@@ -117,6 +117,8 @@ flags =
   , Flag "goroutines" "int" KInt
       "concurrent workers (1..10); on runtimes without parallelism values above 1 are clamped to 1" "3"
   , Flag "hash" "string" KString "inner ITB hash primitive name" "areion512"
+  , Flag "interlock" "string" KString
+      "Interlocked Barrier chunk width: 48 | 168; empty = profile default (48; 168 requires 512-bit hash)" ""
   , Flag "iterations" "int" KInt64
       "fixed per-worker iteration count; 0 = duration-based" "0"
   , Flag "json-output" "" KBool
@@ -287,6 +289,10 @@ stageC raw = do
   need (barrierFill `elem` [0, 1, 2, 4, 8, 16, 32])
     ("--barrier-fill must be 1 | 2 | 4 | 8 | 16 | 32 (or 0 = profile default), got "
       ++ show barrierFill)
+  let interlock = raw "interlock"
+  need (interlock `elem` ["", "48", "168"])
+    ("--interlock must be 48 | 168 (or empty = profile default), got \""
+      ++ interlock ++ "\"")
   let chunkRaw = raw "chunk-size"
   chunkSize <- case parseSize chunkRaw of
     Just c -> Right c
@@ -370,6 +376,7 @@ parseFlags argv = do
                         -- Validated by Init: the C ABI enumerates no
                         -- DRBG names.
                         , cfgDrbg = raw "drbg"
+                        , cfgInterlock = raw "interlock"
                         , cfgGomaxprocs = gomaxprocs
                         , cfgRekeyEvery = rekeyEvery
                         , cfgBlobCycleEvery = blobEvery
@@ -526,6 +533,9 @@ logPipelineInitialised profile blob = do
         ++ (case recordStr json "drbg" of
               "-" -> ""
               d -> " drbg=" ++ d)
+        ++ (case recordStr json "interlock" of
+              "-" -> ""
+              il -> " interlock=" ++ il)
   where
     head' = "pipeline initialised: profile=" ++ profile ++ " blob="
       ++ show (BS.length blob) ++ " bytes"
@@ -548,6 +558,7 @@ buildPipeline cfg profile = do
         <> ITB3.nonceBits (cfgNonceBits cfg)
         <> ITB3.barrierFill (cfgBarrierFill cfg)
         <> ITB3.drbg (cfgDrbg cfg)
+        <> ITB3.interlock (cfgInterlock cfg)
         <> ITB3.chunkSize (fromIntegral (cfgChunkSize cfg))
   extra <-
     if null (cfgProfile cfg)
@@ -641,6 +652,7 @@ run argv = do
         ++ " json-output=" ++ (if cfgJsonOutput cfg then "true" else "false")
         ++ (if cfgBlobMode cfg /= 1 then " blob-mode=" ++ show (cfgBlobMode cfg) else "")
         ++ (if null (cfgDrbg cfg) then "" else " drbg=" ++ cfgDrbg cfg)
+        ++ (if null (cfgInterlock cfg) then "" else " interlock=" ++ cfgInterlock cfg)
       logLine $ "policy: microbatch-tiers=" ++ microbatch
         ++ " hashpool-starters=" ++ starters
 

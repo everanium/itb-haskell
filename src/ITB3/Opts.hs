@@ -15,6 +15,7 @@ module ITB3.Opts
   , renderOpts
     -- * Typed setters
   , mode
+  , interlock
   , permMaster
   , wrapMaster
   , withParallax
@@ -64,6 +65,11 @@ opt k v = Opts [(k, v)]
 -- | Container floor sizing mode (1 for per-region, 2 for per-container compact).
 mode :: Int -> Opts
 mode = opt "mode" . show
+
+-- | Interlocked Barrier chunk width override (@\"48\"@ | @\"168\"@,
+-- @\"\"@ for the 48-bit default; @\"168\"@ requires a 512-bit hash).
+interlock :: String -> Opts
+interlock = opt "interlock"
 
 -- | Hex-encodes the parallax master override (@pm@).
 permMaster :: BS.ByteString -> Opts

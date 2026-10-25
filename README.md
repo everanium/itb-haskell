@@ -80,7 +80,9 @@ main = do
   freePipeline sender
 ```
 
-`ITB3.Opts` overrides the profile default at init (chunk size, outer
+`ITB3.Opts` overrides the profile default at init (container mode,
+interlock chunk width `"48"` | `"168"` where `""` selects the 48-bit
+default and `"168"` requires a 512-bit hash, chunk size, outer
 cipher, parallax on/off, wrapper on/off, MAC name, palette, worker
 cap); an `Opts` is a `Monoid`, so setters compose with `<>`. The
 resolved shape travels inside the blob, so the receiver needs no
@@ -89,7 +91,7 @@ options of its own:
 ```haskell
 import ITB3.Opts
 
-let opts = mode 2 <> chunkSize 65536 <> withWrapper False <> maxWorkers 4
+let opts = mode 2 <> interlock "168" <> chunkSize 65536 <> withWrapper False <> maxWorkers 4
 sender   <- initPipeline "singlemsg-triple-mac-v1" opts
 b        <- save sender
 receiver <- loadPipeline b Nothing
