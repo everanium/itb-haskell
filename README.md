@@ -4,6 +4,12 @@
 >
 > PRF-grade hash functions are **required**. No warranty is provided.
 
+<p align="center">
+  <code>f<sub>total</sub> = f<sub>pixel</sub> ∘ f<sub>traj</sub> ∘ f<sub>cobs</sub> ∘ f<sub>desync2</sub> ∘ f<sub>rank</sub> &nbsp;&nbsp;⟹&nbsp;&nbsp; f<sub>total</sub><sup>−1</sup> ∘ f<sub>total</sub> = id</code>
+  <br>
+  <em>Geometric Bijection</em>
+</p>
+
 **No bespoke cryptography.** ITB introduces no cryptographic primitive of its own — no custom S-box, permutation, or round function. It is a construction over existing primitives, much as PGP composes standard ciphers rather than defining one. Such constructions are not the object of algorithm-level cryptographic certification: national regimes (NIST CAVP/FIPS in the US, GOST/FSB in Russia, OSCCA's SM-series in China, IC3S in India, SOG-IS/EUCC and national lists in the EU, ASD's ISM in Australia, CRYPTREC in Japan, KCMVP in South Korea) certify **primitives** and the **modules** built on them, not compositional schemes. Eligibility for regulated use is therefore inherited from the primitives ITB is configured with, not conferred by ITB itself.
 
 Thin proxy over the libitb3 shared library's `ITB_Triple_*` surface
