@@ -5,7 +5,7 @@
 > PRF-grade hash functions are **required**. No warranty is provided.
 
 <p align="center">
-  <code>f<sub>total</sub> = f<sub>pixel</sub> ∘ f<sub>traj</sub> ∘ f<sub>cobs</sub> ∘ f<sub>desync2</sub> ∘ f<sub>rank</sub> &nbsp;&nbsp;⟹&nbsp;&nbsp; f<sub>total</sub><sup>−1</sup> ∘ f<sub>total</sub> = id</code>
+  <code>f<sub>total</sub> = f<sub>pixel</sub> ∘ f<sub>traj</sub> ∘ f<sub>cobs</sub> ∘ f<sub>slot</sub> ∘ f<sub>rank</sub> &nbsp;&nbsp;⟹&nbsp;&nbsp; f<sub>total</sub><sup>−1</sup> ∘ f<sub>total</sub> = id</code>
   <br>
   <em>Geometric Bijection</em>
 </p>
